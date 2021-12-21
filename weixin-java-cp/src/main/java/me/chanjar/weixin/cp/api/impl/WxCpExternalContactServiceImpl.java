@@ -25,7 +25,7 @@ import java.util.List;
 import static me.chanjar.weixin.cp.constant.WxCpApiPathConsts.ExternalContact.*;
 
 /**
- * @author 曹祖鹏 & yuanqixun
+ * @author 曹祖鹏 & yuanqixun & Mr.Pan
  */
 @RequiredArgsConstructor
 public class WxCpExternalContactServiceImpl implements WxCpExternalContactService {
@@ -102,8 +102,12 @@ public class WxCpExternalContactServiceImpl implements WxCpExternalContactServic
   }
 
   @Override
-  public WxCpExternalContactInfo getContactDetail(String userId) throws WxErrorException {
-    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(GET_CONTACT_DETAIL + userId);
+  public WxCpExternalContactInfo getContactDetail(String userId, String cursor) throws WxErrorException {
+    String params = userId;
+    if(StringUtils.isNotEmpty(cursor)){
+      params = params + "&cursor=" + cursor;
+    }
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(GET_CONTACT_DETAIL + params);
     String responseContent = this.mainService.get(url, null);
     return WxCpExternalContactInfo.fromJson(responseContent);
   }
@@ -129,6 +133,49 @@ public class WxCpExternalContactServiceImpl implements WxCpExternalContactServic
     String responseContent = this.mainService.post(url, json.toString());
     JsonObject tmpJson = GsonParser.parse(responseContent);
     return tmpJson.get("external_userid").getAsString();
+  }
+
+  @Override
+  public String toServiceExternalUserid(@NotNull String externalUserid) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    json.addProperty("external_userid", externalUserid);
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(TO_SERVICE_EXTERNAL_USERID);
+    String responseContent = this.mainService.post(url, json.toString());
+    JsonObject tmpJson = GsonParser.parse(responseContent);
+    return tmpJson.get("external_userid").getAsString();
+  }
+
+  @Override
+  public WxCpExternalUserIdList unionidToExternalUserid3rd(@NotNull String unionid, @NotNull String openid, String corpid) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    json.addProperty("unionid", unionid);
+    json.addProperty("openid", openid);
+    if(StringUtils.isNotEmpty(corpid)){
+      json.addProperty("corpid",corpid);
+    }
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(UNIONID_TO_EXTERNAL_USERID_3RD);
+    String responseContent = this.mainService.post(url, json.toString());
+    return WxCpExternalUserIdList.fromJson(responseContent);
+  }
+
+  @Override
+  public WxCpNewExternalUserIdList getNewExternalUserId(String[] externalUserIdList) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    if (ArrayUtils.isNotEmpty(externalUserIdList)) {
+      json.add("external_userid_list", new Gson().toJsonTree(externalUserIdList).getAsJsonArray());
+    }
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(GET_NEW_EXTERNAL_USERID);
+    String responseContent = this.mainService.post(url, json.toString());
+    return WxCpNewExternalUserIdList.fromJson(responseContent);
+  }
+
+  @Override
+  public WxCpBaseResp finishExternalUserIdMigration(@NotNull String corpid) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    json.addProperty("corpid", corpid);
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(FINISH_EXTERNAL_USERID_MIGRATION);
+    String responseContent = this.mainService.post(url, json.toString());
+    return WxCpBaseResp.fromJson(responseContent);
   }
 
   @Override
@@ -702,4 +749,45 @@ public class WxCpExternalContactServiceImpl implements WxCpExternalContactServic
     final String result = this.mainService.post(url, json.toString());
     return WxCpBaseResp.fromJson(result);
   }
+
+  /**
+   * <pre>
+   * 获取商品图册
+   * https://work.weixin.qq.com/api/doc/90000/90135/95096#获取商品图册列表
+   * </pre>
+   *
+   * @param limit   返回的最大记录数，整型，最大值100，默认值50，超过最大值时取默认值
+   * @param cursor  用于分页查询的游标，字符串类型，由上一次调用返回，首次调用可不填
+   * @return wx cp base resp
+   * @throws WxErrorException the wx error exception
+   */
+  @Override
+  public WxCpProductAlbumListResult getProductAlbumList(Integer limit, String cursor) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    json.addProperty("limit", limit);
+    json.addProperty("cursor", cursor);
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(GET_PRODUCT_ALBUM_LIST);
+    final String result = this.mainService.post(url, json.toString());
+    return WxCpProductAlbumListResult.fromJson(result);
+  }
+
+  /**
+   * <pre>
+   * 获取商品图册
+   * https://work.weixin.qq.com/api/doc/90000/90135/95096#获取商品图册
+   * </pre>
+   *
+   * @param productId  商品id
+   * @return wx cp base resp
+   * @throws WxErrorException the wx error exception
+   */
+  @Override
+  public WxCpProductAlbumResult getProductAlbum(String productId) throws WxErrorException {
+    JsonObject json = new JsonObject();
+    json.addProperty("product_id", productId);
+    final String url = this.mainService.getWxCpConfigStorage().getApiUrl(GET_PRODUCT_ALBUM);
+    final String result = this.mainService.post(url, json.toString());
+    return WxCpProductAlbumResult.fromJson(result);
+  }
+
 }
