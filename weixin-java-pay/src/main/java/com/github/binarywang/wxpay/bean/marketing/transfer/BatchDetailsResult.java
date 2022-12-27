@@ -21,7 +21,7 @@ import java.util.Date;
  * </pre>
  *
  * @author xiaoqiang
- * @date 2021-12-06
+ * created on  2021-12-06
  */
 @Data
 @NoArgsConstructor
@@ -235,5 +235,5 @@ public class BatchDetailsResult implements Serializable {
    * </pre>
    */
   @SerializedName(value = "update_time")
-  private Date updateTime;
+  private String updateTime;
 }

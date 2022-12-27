@@ -1,26 +1,26 @@
 package me.chanjar.weixin.common.util.crypto;
 
-import java.io.StringReader;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Random;
+import com.google.common.base.CharMatcher;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import me.chanjar.weixin.common.error.WxRuntimeException;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-
-import com.google.common.base.CharMatcher;
-import com.google.common.io.BaseEncoding;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import me.chanjar.weixin.common.error.WxRuntimeException;
-import org.apache.commons.codec.binary.Base64;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.xml.sax.InputSource;
+import java.io.StringReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Random;
 
 /**
  * <pre>
@@ -66,7 +66,7 @@ public class WxCryptUtil {
   public WxCryptUtil(String token, String encodingAesKey, String appidOrCorpid) {
     this.token = token;
     this.appidOrCorpid = appidOrCorpid;
-    this.aesKey = Base64.decodeBase64(CharMatcher.whitespace().removeFrom(encodingAesKey));
+    this.aesKey = Base64.decodeBase64(StringUtils.remove(encodingAesKey, " "));
   }
 
   private static String extractEncryptPart(String xml) {
