@@ -10,8 +10,6 @@ import me.chanjar.weixin.common.util.http.RequestHttp;
 import me.chanjar.weixin.cp.bean.*;
 import me.chanjar.weixin.cp.config.WxCpTpConfigStorage;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
 import java.util.List;
 
 /**
@@ -374,6 +372,7 @@ public interface WxCpTpService {
   /**
    * <pre>
    * 获取访问用户敏感信息
+   * <a href="https://developer.work.weixin.qq.com/document/path/95833">文档地址</a>
    * </pre>
    *
    * @param userTicket the user ticket
@@ -403,7 +402,7 @@ public interface WxCpTpService {
    * @return customized auth url
    * @throws WxErrorException the wx error exception
    */
-  WxTpCustomizedAuthUrl getCustomizedAuthUrl(@NotBlank String state, @NotEmpty List<String> templateIdList) throws WxErrorException;
+  WxTpCustomizedAuthUrl getCustomizedAuthUrl(String state, List<String> templateIdList) throws WxErrorException;
 
   /**
    * 获取服务商providerToken
@@ -632,5 +631,12 @@ public interface WxCpTpService {
   WxCpTpIdConvertService getWxCpTpIdConverService();
 
   void setWxCpTpIdConverService(WxCpTpIdConvertService wxCpTpIdConvertService);
+
+  /**
+   * 构造第三方应用oauth2链接
+   */
+  WxCpTpOAuth2Service getWxCpTpOAuth2Service();
+
+  void setWxCpTpOAuth2Service(WxCpTpOAuth2Service wxCpTpOAuth2Service);
 
 }

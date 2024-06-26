@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import me.chanjar.weixin.common.api.WxConsts;
 import me.chanjar.weixin.common.bean.WxAccessToken;
 import me.chanjar.weixin.common.bean.WxJsapiSignature;
 import me.chanjar.weixin.common.enums.WxType;
@@ -28,8 +29,6 @@ import me.chanjar.weixin.cp.config.WxCpTpConfigStorage;
 import me.chanjar.weixin.cp.tp.service.*;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
 import java.io.File;
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -58,7 +57,7 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
   private WxCpTpEditionService wxCpTpEditionService = new WxCpTpEditionServiceImpl(this);
   private WxCpTpLicenseService wxCpTpLicenseService = new WxCpTpLicenseServiceImpl(this);
   private WxCpTpIdConvertService wxCpTpIdConvertService = new WxCpTpIdConvertServiceImpl(this);
-
+  private WxCpTpOAuth2Service wxCpTpOAuth2Service = new WxCpTpOAuth2ServiceImpl(this);
   /**
    * 全局的是否正在刷新access token的锁.
    */
@@ -130,7 +129,7 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
   public String getSuiteTicket() throws WxErrorException {
     if (this.configStorage.isSuiteTicketExpired()) {
       // 本地suite ticket 不存在或者过期
-      WxError wxError = WxError.fromJson("{\"errcode\":40085, \"errmsg\":\"invaild suite ticket\"}", WxType.CP);
+      WxError wxError = WxError.fromJson("{\"errcode\":40085, \"errmsg\":\"invalid suite ticket\"}", WxType.CP);
       throw new WxErrorException(wxError);
     }
     return this.configStorage.getSuiteTicket();
@@ -165,7 +164,7 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
         "type=agent_config&access_token=" + this.configStorage.getAccessToken(authCorpId), true);
 
       JsonObject jsonObject = GsonParser.parse(resp);
-      if (jsonObject.get("errcode").getAsInt() == 0) {
+      if (jsonObject.get(WxConsts.ERR_CODE).getAsInt() == 0) {
         String jsApiTicket = jsonObject.get("ticket").getAsString();
         int expiredInSeconds = jsonObject.get("expires_in").getAsInt();
         synchronized (globalJsApiTicketRefreshLock) {
@@ -195,7 +194,7 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
         "access_token=" + this.configStorage.getAccessToken(authCorpId), true);
 
       JsonObject jsonObject = GsonParser.parse(resp);
-      if (jsonObject.get("errcode").getAsInt() == 0) {
+      if (jsonObject.get(WxConsts.ERR_CODE).getAsInt() == 0) {
         String jsApiTicket = jsonObject.get("ticket").getAsString();
         int expiredInSeconds = jsonObject.get("expires_in").getAsInt();
 
@@ -540,7 +539,7 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
   }
 
   @Override
-  public WxTpCustomizedAuthUrl getCustomizedAuthUrl(@NotBlank String state, @NotEmpty List<String> templateIdList) throws WxErrorException {
+  public WxTpCustomizedAuthUrl getCustomizedAuthUrl(String state, List<String> templateIdList) throws WxErrorException {
     JsonObject jsonObject = new JsonObject();
     jsonObject.addProperty("state", state);
     jsonObject.add("templateid_list", WxGsonBuilder.create().toJsonTree(templateIdList).getAsJsonArray());
@@ -755,5 +754,13 @@ public abstract class BaseWxCpTpServiceImpl<H, P> implements WxCpTpService, Requ
   }
 
 
+  @Override
+  public WxCpTpOAuth2Service getWxCpTpOAuth2Service() {
+    return wxCpTpOAuth2Service;
+  }
 
+  @Override
+  public void setWxCpTpOAuth2Service(WxCpTpOAuth2Service wxCpTpOAuth2Service) {
+    this.wxCpTpOAuth2Service = wxCpTpOAuth2Service;
+  }
 }

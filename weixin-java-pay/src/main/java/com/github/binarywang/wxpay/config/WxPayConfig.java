@@ -16,17 +16,15 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.ssl.SSLContexts;
 
 import javax.net.ssl.SSLContext;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
+import java.util.Optional;
 
 /**
  * 微信支付配置
@@ -166,6 +164,11 @@ public class WxPayConfig {
 
   private CloseableHttpClient apiV3HttpClient;
   /**
+   * 支持扩展httpClientBuilder
+   */
+  private HttpClientBuilderCustomizer httpClientBuilderCustomizer;
+  private HttpClientBuilderCustomizer apiV3HttpClientBuilderCustomizer;
+  /**
    * 私钥信息
    */
   private PrivateKey privateKey;
@@ -260,13 +263,30 @@ public class WxPayConfig {
       throw new WxPayException("请确保apiV3Key值已设置");
     }
 
-    InputStream keyInputStream = this.loadConfigInputStream(this.getPrivateKeyString(), this.getPrivateKeyPath(),
-      this.privateKeyContent, "privateKeyPath");
-    InputStream certInputStream = this.loadConfigInputStream(this.getPrivateCertString(), this.getPrivateCertPath(),
-      this.privateCertContent, "privateCertPath");
+    // 尝试从p12证书中加载私钥和证书
+    PrivateKey merchantPrivateKey = null;
+    X509Certificate certificate = null;
+    Object[] objects = this.p12ToPem();
+    if (objects != null) {
+      merchantPrivateKey = (PrivateKey) objects[0];
+      certificate = (X509Certificate) objects[1];
+    }
     try {
-      PrivateKey merchantPrivateKey = PemUtils.loadPrivateKey(keyInputStream);
-      X509Certificate certificate = PemUtils.loadCertificate(certInputStream);
+      if (merchantPrivateKey == null) {
+        if (StringUtils.isNotBlank(this.getPrivateKeyString())) {
+          this.setPrivateKeyString(Base64.getEncoder().encodeToString(this.getPrivateKeyString().getBytes()));
+        }
+        InputStream keyInputStream = this.loadConfigInputStream(this.getPrivateKeyString(), this.getPrivateKeyPath(),
+          this.privateKeyContent, "privateKeyPath");
+        merchantPrivateKey = PemUtils.loadPrivateKey(keyInputStream);
+
+      }
+      if (certificate == null) {
+        InputStream certInputStream = this.loadConfigInputStream(this.getPrivateCertString(), this.getPrivateCertPath(),
+          this.privateCertContent, "privateCertPath");
+        certificate = PemUtils.loadCertificate(certInputStream);
+      }
+
       if (StringUtils.isBlank(this.getCertSerialNo())) {
         this.certSerialNo = certificate.getSerialNumber().toString(16).toUpperCase();
       }
@@ -275,7 +295,7 @@ public class WxPayConfig {
 
       AutoUpdateCertificatesVerifier certificatesVerifier = new AutoUpdateCertificatesVerifier(
         new WxPayCredentials(mchId, new PrivateKeySigner(certSerialNo, merchantPrivateKey)),
-        this.getApiV3Key().getBytes(StandardCharsets.UTF_8), this.getCertAutoUpdateTime(), wxPayHttpProxy);
+        this.getApiV3Key().getBytes(StandardCharsets.UTF_8), this.getCertAutoUpdateTime(), this.getPayBaseUrl(), wxPayHttpProxy);
 
       WxPayV3HttpClientBuilder wxPayV3HttpClientBuilder = WxPayV3HttpClientBuilder.create()
         .withMerchant(mchId, certSerialNo, merchantPrivateKey)
@@ -283,6 +303,10 @@ public class WxPayConfig {
       //初始化V3接口正向代理设置
       HttpProxyUtils.initHttpProxy(wxPayV3HttpClientBuilder, wxPayHttpProxy);
 
+      // 提供自定义wxPayV3HttpClientBuilder的能力
+      Optional.ofNullable(apiV3HttpClientBuilderCustomizer).ifPresent(e -> {
+        e.customize(wxPayV3HttpClientBuilder);
+      });
       CloseableHttpClient httpClient = wxPayV3HttpClientBuilder.build();
 
       this.apiV3HttpClient = httpClient;
@@ -290,6 +314,8 @@ public class WxPayConfig {
       this.privateKey = merchantPrivateKey;
 
       return httpClient;
+    } catch (WxPayException e) {
+      throw e;
     } catch (Exception e) {
       throw new WxPayException("v3请求构造异常！", e);
     }
@@ -313,7 +339,7 @@ public class WxPayConfig {
     if (configContent != null) {
       inputStream = new ByteArrayInputStream(configContent);
     } else if (StringUtils.isNotEmpty(configString)) {
-      configContent = Base64.getDecoder().decode(configString);
+      configContent = configString.getBytes(StandardCharsets.UTF_8);
       inputStream = new ByteArrayInputStream(configContent);
     } else {
       if (StringUtils.isBlank(configPath)) {
@@ -373,11 +399,60 @@ public class WxPayConfig {
           throw new WxPayException(fileNotFoundMsg);
         }
 
-        return Files.newInputStream(file.toPath());
+//        return Files.newInputStream(file.toPath());
+        return new FileInputStream(file);
       } catch (IOException e) {
         throw new WxPayException(fileHasProblemMsg, e);
       }
     }
+  }
+
+  /**
+   * 从配置路径 加载p12证书文件流
+   *
+   * @return 文件流
+   */
+  private InputStream loadP12InputStream() {
+    try (InputStream inputStream = this.loadConfigInputStream(this.keyString, this.getKeyPath(),
+      this.keyContent, "p12证书");) {
+      return inputStream;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  /**
+   * 分解p12证书文件
+   *
+   * @return
+   */
+  private Object[] p12ToPem() {
+    InputStream inputStream = this.loadP12InputStream();
+    if (inputStream == null) {
+      return null;
+    }
+    String key = getMchId();
+    if (StringUtils.isBlank(key)) {
+      return null;
+    }
+    // 分解p12证书文件
+    PrivateKey privateKey = null;
+    X509Certificate x509Certificate = null;
+    try {
+      KeyStore keyStore = KeyStore.getInstance("PKCS12");
+      keyStore.load(inputStream, key.toCharArray());
+
+      String alias = keyStore.aliases().nextElement();
+      privateKey = (PrivateKey) keyStore.getKey(alias, key.toCharArray());
+
+      Certificate certificate = keyStore.getCertificate(alias);
+      x509Certificate = (X509Certificate) certificate;
+      return new Object[]{privateKey, x509Certificate};
+    } catch (Exception ignored) {
+
+    }
+    return null;
+
 
   }
 }
